@@ -28,12 +28,13 @@ var (
 	Config struct {
 		topics  []*regexp.Regexp
 		brokers []int
+		racks   []string
 	}
 )
 
 func bootstrap(cmd *cobra.Command) {
 	b, _ := cmd.Flags().GetString("brokers")
-	Config.brokers = brokerStringToSlice(b)
+	Config.brokers, Config.racks = brokerStringToSlice(b)
 
 	// Append trailing slash if not included.
 	op := cmd.Flag("out-path").Value.String()
@@ -116,17 +117,20 @@ func containsRegex(t string) bool {
 	return false
 }
 
-func brokerStringToSlice(s string) []int {
+func brokerStringToSlice(s string) ([]int, []string) {
 	ids := map[int]bool{}
 	var info int
 
 	parts := strings.Split(s, ",")
 	var is []int
+	var racks []string
 
 	// Iterate and convert
 	// each broker ID.
 	for _, p := range parts {
-		i, err := strconv.Atoi(strings.TrimSpace(p))
+		metaPushed := strings.Split(strings.TrimSpace(p), ":")
+
+		i, err := strconv.Atoi(strings.TrimSpace(metaPushed[0]))
 		// Err and exit on bad input.
 		if err != nil {
 			fmt.Println(err)
@@ -141,6 +145,7 @@ func brokerStringToSlice(s string) []int {
 
 		ids[i] = true
 		is = append(is, i)
+		racks = append(racks, metaPushed[1])
 	}
 
 	// Formatting purposes.
@@ -148,7 +153,7 @@ func brokerStringToSlice(s string) []int {
 		fmt.Println()
 	}
 
-	return is
+	return is, racks
 }
 
 func defaultsAndExit() {

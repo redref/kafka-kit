@@ -95,7 +95,7 @@ func getBrokers(cmd *cobra.Command, pm *kafkazk.PartitionMap, bm kafkazk.BrokerM
 
 	// Update the currentBrokers list with
 	// the provided broker list.
-	bs, msgs := brokers.Update(Config.brokers, bm)
+	bs, msgs := brokers.Update(Config.brokers, Config.racks, bm)
 	for m := range msgs {
 		fmt.Printf("%s%s\n", indent, m)
 	}

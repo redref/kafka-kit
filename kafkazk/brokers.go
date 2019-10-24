@@ -213,15 +213,15 @@ func (b BrokerList) SortPseudoShuffle(seed int64) {
 // BrokerMap, returning the count of marked for replacement, newly included,
 // and brokers that weren't found in ZooKeeper. Additionally, a channel
 // of msgs describing changes is returned.
-func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan string) {
+func (b BrokerMap) Update(bl []int, racks []string, bm BrokerMetaMap) (*BrokerStatus, <-chan string) {
 	bs := &BrokerStatus{}
 	msgs := make(chan string, len(b)+(len(bl)*3))
 
 	var includeAllExisting = false
 
 	// Build a map from the provided broker list.
-	providedBrokers := map[int]bool{}
-	for _, broker := range bl {
+	providedBrokers := map[int]string{}
+	for idx, broker := range bl {
 		// -1 is a placeholder that is substituted with
 		// all brokers already found in the BrokerMap.
 		if broker == -1 {
@@ -229,12 +229,12 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 			continue
 		}
 
-		providedBrokers[broker] = true
+		providedBrokers[broker] = racks[idx]
 	}
 
 	if includeAllExisting {
 		for id := range b {
-			providedBrokers[id] = true
+			providedBrokers[id] = ""
 		}
 	}
 
@@ -277,7 +277,8 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 	}
 
 	// Merge provided brokers with existing brokers.
-	for id := range providedBrokers {
+	fmt.Println("Brokers:")
+	for id, rack := range providedBrokers {
 		// Don't overwrite existing (which will be most brokers).
 		if b[id] == nil {
 			// Skip metadata lookups if
@@ -286,6 +287,7 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 				b[id] = &Broker{
 					Used:    0,
 					ID:      id,
+					Locality: rack,
 					Replace: false,
 					New:     true,
 				}
@@ -300,7 +302,7 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 					Used:        0,
 					ID:          id,
 					Replace:     false,
-					Locality:    meta.Rack,
+					Locality:    rack,
 					StorageFree: meta.StorageFree,
 					New:         true,
 				}
@@ -309,7 +311,10 @@ func (b BrokerMap) Update(bl []int, bm BrokerMetaMap) (*BrokerStatus, <-chan str
 				bs.Missing++
 				msgs <- fmt.Sprintf("Broker %d not found in ZooKeeper", id)
 			}
+		} else if rack != "" {
+			b[id].Locality = rack
 		}
+		fmt.Printf("\t%+v\n", b[id])
 	}
 
 	// Log new brokers.
